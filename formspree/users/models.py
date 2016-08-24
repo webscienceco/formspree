@@ -1,7 +1,7 @@
 import hmac
 import hashlib
 from datetime import datetime
-from flask import url_for, render_template
+from flask import url_for, render_template, g
 
 from formspree import settings
 from formspree.utils import send_email, IS_VALID_EMAIL
@@ -57,6 +57,43 @@ class User(DB.Model):
     def get_id(self):
         return unicode(self.id)
 
+    def reset_password_digest(self):
+        return hmac.new(
+            settings.NONCE_SECRET,
+            'id={0}&password={1}'.format(self.id, self.password),
+            hashlib.sha256
+        ).hexdigest()
+
+    def send_password_reset(self):
+        g.log.info('Sending password reset.', account=self.email)
+
+        digest = self.reset_password_digest()
+        link = url_for('reset-password', digest=digest, email=self.email, _external=True)
+        res = send_email(
+            to=self.email,
+            subject='Reset your %s password!' % settings.SERVICE_NAME,
+            text=render_template('email/reset-password.txt', addr=self.email, link=link),
+            html=render_template('email/reset-password.html', add=self.email, link=link),
+            sender=settings.ACCOUNT_SENDER
+        )
+        if not res[0]:
+            g.log.info('Failed to send email.', reason=res[1], code=res[2])
+            return False
+        else:
+            return True
+
+    @classmethod
+    def from_password_reset(cls, email, digest):
+        user = User.query.filter_by(email=email).first()
+        if not user: return None
+
+        what_should_be = user.reset_password_digest()
+        if digest == what_should_be:
+            return user
+        else:
+            return None
+
+
 class Email(DB.Model):
     __tablename__ = 'emails'
 
@@ -70,8 +107,12 @@ class Email(DB.Model):
 
     @staticmethod
     def send_confirmation(addr, user_id):
+        g.log = g.log.new(address=addr, user_id=user_id)
+        g.log.info('Sending email confirmation for new address on account.')
+
         addr = addr.lower().strip()
         if not IS_VALID_EMAIL(addr):
+            g.log.info('Failed. Invalid address.')
             raise ValueError('Cannot send confirmation. %s is not a valid email.' % addr)
 
         message = 'email={email}&user_id={user_id}'.format(email=addr, user_id=user_id)
@@ -85,6 +126,7 @@ class Email(DB.Model):
             sender=settings.ACCOUNT_SENDER
         )
         if not res[0]:
+            g.log.info('Failed to send email.', reason=res[1], code=res[2])
             return False
         else:
             return True

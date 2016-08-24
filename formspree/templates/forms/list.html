@@ -7,59 +7,74 @@
 {% block section %}
 
 <div class="col-1-1">
-  <table class="forms">
-  {# status icon | host or view-code link | target email | number of submissions #}
-  {% for form in forms %}
-    <tr class="{% if form.is_new %}new{% elif form.confirmed %}verified{% elif form.confirm_sent %}waiting_confirmation{% endif %}">
-      <td>
-      {% if form.is_new %}
-        <span class="tooltip hint--right" data-hint="New form. Place the code generated here in some page and submit it!"><span class="ion-help"></span></span>
-      {% elif form.confirmed %}
-        <span class="tooltip hint--right" data-hint="Confirmed form"><span class="ion-checkmark-round"></span></span>
-      {% elif form.confirm_sent %}
-        <span class="tooltip hint--right" data-hint="Waiting confirmation"><span class="ion-pause"></span></span>
-      {% endif %}
-      </td>
-      <td>
-        {% if form.is_new %}
-          <a href="#view-code-{{ form.hashid }}">View HTML code</a>
-        {% else %}
-          {{ form.host }}
-        {% endif %}
-      </td>
-      <td>{{ form.email }}</td>
-      <td>
-        {% if form.is_new %}
-          form never submitted
-        {% else %}
-          <a href="{{ url_for('form-submissions', hashid=form.hashid) }}">{{ form.counter }} submissions</a>
-        {% endif %}
-      </td>
-    </tr>
+  <h4>Active Forms</h4>
+  <table class="forms responsive">
+  {# status icon | host or form link | target email | number of submissions #}
+  {% for form in enabled_forms %}
+    {% include "forms/list-item.html" %}
+  {% else %}
+    <p>No active forms found. Forms can be enabled by clicking the unlock icon below.</p>
   {% endfor %}
   </table>
 
-  {% if not forms and current_user.upgraded %}
+  {% if disabled_forms %}
+    <h4>Disabled Forms</h4>
+    <table class="forms responsive">
+    {# status icon | host or form link | target email | number of submissions #}
+    {% for form in disabled_forms %}
+      {% include "forms/list-item.html" %}
+    {% endfor %}
+    </table>
+  {% endif %}
+
+  {% if not enabled_forms and not disabled_forms and current_user.upgraded %}
     <h6 class="light">You don't have any forms associated with this account, maybe you should <a href="{{ url_for('account') }}">verify your email</a>.</h6>
   {% endif %}
 </div>
 
 {% include "forms/create.html" %}
 
-
-{# "view HTML code" modals for each form #}
-{% macro showcode(form) %}{% set formcode %}<form action="{{ form.action }}" method="POST">
-  <input type="text" name="_gotcha" style="display: none" />
-  <input type="email" name="email" placeholder="Your email">
-  <textarea name="message" rows="5" placeholder="Your message"></textarea>
-  <input type="submit" value="Send">
-</form>{% endset %}{{ formcode|escape }}{%- endmacro %}
-
-{% for form in forms %}
-  <div class="modal" id="view-code-{{ form.hashid }}" aria-hidden="true">
+{# modals for each form #}
+{% for form in (enabled_forms + disabled_forms) %}
+  <div class="modal" id="form-{{ form.hashid }}" aria-hidden="true">
     <div>
-      <div class="x"><h4>Place this code in your page's HTML</h4><a href="#">&times;</a></div>
-      <textarea rows="7">{{ showcode(form) }}</textarea>
+      {% if request.args.get('new') == form.hashid %}
+        <div class="x"><h4>Congratulations!</h4><a href="#">&times;</a></div>
+        <p style="clear: both">Now that you have created your form, use the following HTML code in your website, filling it with the <span class="code">&lt;input&gt;</span> fields you wish your visitors to fill:</p>
+      {% else %}
+        <div class="x"><h4>Use this code in your HTML</h4><a href="#">&times;</a></div>
+      {% endif %}
+      <div class="html-highlight">
+        <span class="bracket">&lt;</span><span class="tagname">form</span>
+        <span class="attrkey">action</span><span class="equal">=</span><span class="attrvalue">"{{ config.SERVICE_URL }}/{{ form.hashid }}"</span>
+        <span class="attrkey">method</span><span class="equal">=</span><span class="attrvalue">"POST"</span><span class="bracket">></span>
+        <br>
+        &nbsp;&nbsp;<span class="bracket">&lt;</span><span class="tagname">input</span>
+        <span class="attrkey">type</span><span class="equal">=</span><span class="attrvalue">"text"</span>
+        <span class="attrkey">name</span><span class="equal">=</span><span class="attrvalue">"_gotcha"</span>
+        <span class="attrkey">style</span><span class="equal">=</span><span class="attrvalue">"display: none"</span><span class="bracket">></span>
+        <br>
+        <br>
+        &nbsp;&nbsp;<span class="comment">&lt;!-- your other form fields go here --></span>
+        <br>
+        <br>
+        &nbsp;&nbsp;<span class="bracket">&lt;</span><span class="tagname">button</span>
+        <span class="attrkey">type</span><span class="equal">=</span><span class="attrvalue">"submit"</span><span class="bracket">></span>Send<span class="bracket">&lt;/</span><span class="tagname">button</span><span class="bracket">></span>
+        <br>
+        <span class="bracket">&lt;/</span><span class="tagname">form</span><span class="bracket">></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="delete-{{ form.hashid }}" aria-hidden="true">
+    <div>
+        <div class="x"><h4>Are you ABSOLUTELY sure?</h4><a href="#">&times;</a></div>
+      <br />
+      <p>This action <strong>CANNOT</strong> be undone. This will permanantly delete the form{% if form.host %} on <strong>{{form.host}}</strong>{% endif %} and all related submissions.</p>
+        <form method="POST" action="{{ url_for('form-deletion', hashid=form.hashid) }}">
+          <span class="cancel"><button type="button" onclick="return false;">Cancel</button></span>
+          <button class="delete">Confirm deletion</button>
+        </form>
     </div>
   </div>
 {% endfor %}

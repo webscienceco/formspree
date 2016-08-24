@@ -1,5 +1,7 @@
 development.env
 *.py[cod]
+node_modules
+npm-debug.log
 
 # C extensions
 *.so
@@ -19,6 +21,7 @@ develop-eggs
 lib
 lib64
 env
+venv
 test_form/
 __pycache__
 
@@ -44,9 +47,11 @@ nosetests.xml
 
 # Other
 .sass-cache/
+*.css.map
 
 .DS_Store
 codekit-config.json
+.idea/*
 
 .env
 

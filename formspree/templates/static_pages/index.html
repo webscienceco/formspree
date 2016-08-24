@@ -42,20 +42,28 @@
             <div class="col-1-1">
                 <h3>1. Setup the HTML form</h3>
                 <p>Change your form's <span class="code">action</span>-attribute to this and replace your@email.com with your own email.</p>
-                <p><input type="text" value="http:{{config.API_ROOT}}/your@email.com" /></p>
+                <p><input type="text" class="code" value="{{config.API_ROOT}}/your@email.com" /></p>
             </div>
       </div>
 
       <div class="container narrow block">
             <div class="col-1-1">
-                <h3>2. Submit the form and confirm your email address</h3>
-                <p>Go to your website and submit the form once. This will send you an email asking to confirm your email address, so that no one can start sending you spam from random websites.</p>
+                <h3>2. Add a <span class="code">name</span> attribute to every field</h3>
+                <p>Ensure all <span class="code">&lt;input&gt;</span>, <span class="code">&lt;select&gt;</span> and <span class="code">&lt;textarea&gt;</span> elements inside your form have a <span class="code">name</span> attribute, otherwise you will not receive the data filled in these fields.</p>
             </div>
       </div>
 
       <div class="container narrow block">
             <div class="col-1-1">
-                <h3>3. All set, receive emails</h3>
+                <h3>3. Submit the form and confirm your email address</h3>
+                <p>Go to your website and submit the form once. This will send you an email asking to confirm your email address.</p>
+                <p><em>Remember that if you display the same form in multiple URLs of your site you'll have to confirm it multiple times!</em></p>
+            </div>
+      </div>
+
+      <div class="container narrow block">
+            <div class="col-1-1">
+                <h3>4. All set, receive emails</h3>
                 <p>From now on, when someone submits that form, we'll forward you the data as email.</p>
 
             </div>
@@ -73,7 +81,7 @@
             <div class="col-1-2">
                 <div class="card">
                     <h4>Who are you guys?</h4>
-                    <p>We're a community of developers that work together to create products. You can contribute on <a href="https://github.com/asm-products/formspree">GitHub</a>. {{config.SERVICE_NAME}} is a project that solves a problem many of us have faced: easily adding forms to otherwise static HTML pages.</p>
+                    <p>We're a community of developers that work together to create products. You can contribute on <a href="https://github.com/formspree/formspree">GitHub</a>. {{config.SERVICE_NAME}} is a project that solves a problem many of us have faced: easily adding forms to otherwise static HTML pages.</p>
             	</div>
             </div>
             <div class="col-1-2">
@@ -114,7 +122,7 @@
             <div class="col-1-1">
                 <h4><span class="code">_replyto</span> or <span class="code">email</span></h4>
                 <p>This value is used for the email's Reply-To field. This way you can directly "Reply" to the email to respond to the person who originally submitted the form.</p>
-                <p><input type="text" value='<input type="text" name="_replyto" placeholder="Your email" />'></p>
+                <p><input type="text" class="code" value='<input type="text" name="_replyto" placeholder="Your email" />'></p>
             </div>
       </div>
 
@@ -122,7 +130,7 @@
             <div class="col-1-1">
                 <h4><span class="code">_next</span></h4>
                 <p>By default, after submitting a form the user is shown the {{config.SERVICE_NAME}} "Thank You" page. You can provide an alternative URL for that page.</p>
-                <p><input type="text" value='<input type="hidden" name="_next" value="//site.io/thanks.html" />'></p>
+                <p><input type="text" class="code" value='<input type="hidden" name="_next" value="//site.io/thanks.html" />'></p>
             </div>
       </div>
 
@@ -130,7 +138,7 @@
             <div class="col-1-1">
                 <h4><span class="code">_subject</span></h4>
                 <p>This value is used for the email's subject, so that you can quickly reply to submissions without having to edit the subject line each time.</p>
-                <p><input type="text" value='<input type="hidden" name="_subject" value="New submission!" />'></p>
+                <p><input type="text" class="code" value='<input type="hidden" name="_subject" value="New submission!" />'></p>
             </div>
       </div>
 
@@ -138,7 +146,17 @@
             <div class="col-1-1">
                 <h4><span class="code">_cc</span></h4>
                 <p>This value is used for the email's CC Field. This lets you send a copy of each submission to another email address.</p>
-                <p><input type="text" value='<input type="hidden" name="_cc" value="another@email.com" />'></p>
+                <p><input type="text" class="code" value='<input type="hidden" name="_cc" value="another@email.com" />'></p>
+				<p>If you want to CC multiple email addresses, then just make it a list of email addresses separate by commas.</p>
+                <p><input type="text" class="code" value='<input type="hidden" name="_cc" value="another@email.com,yetanother@email.com" />'></p>
+            </div>
+      </div>
+
+      <div class="container narrow block">
+            <div class="col-1-1">
+                <h4><span class="code">_format</span></h4>
+                <p>Adding this to your form will allow for you to receive plain text versions of emails for form submissions.</p>
+                <p><input type="text" class="code" value='<input type="hidden" name="_format" value="plain" />'></p>
             </div>
       </div>
 
@@ -146,7 +164,7 @@
             <div class="col-1-1">
                 <h4><span class="code">_gotcha</span></h4>
                 <p>Add this "honeypot" field to avoid spam by fooling scrapers. If a value is provided, the submission will be silently ignored. The input should be hidden with CSS.</p>
-                <p><input type="text" value='<input type="text" name="_gotcha" style="display:none" />'></p>
+                <p><input type="text" class="code" value='<input type="text" name="_gotcha" style="display:none" />'></p>
             </div>
       </div>
 
@@ -200,7 +218,7 @@
       <div class="container narrow block">
             <div class="col-1-1">
                 <h3>Invisible emails</h3>
-                <p>Through our dashboard, you will be able to get a random-like string to replace your naked email address in the <span class="code">action</span> attribute of your form. Your email address will remain unknown to spam-bots and also your human visitors.</p>
+                <p>Get a random-like string to replace your naked email address in the <span class="code">action</span> attribute of your form. Your email address will remain unknown to spam-bots and human visitors.</p>
             </div>
       </div>
 
@@ -213,9 +231,23 @@
 
       <div class="container narrow block">
             <div class="col-1-1">
+                <h3>Same form on multiple pages</h3>
+                <p>Showing the same form on many different pages? Generate a form verified site-wide and don't worry about having to track multiple confirmation emails.</p>
+            </div>
+      </div>
+
+      <div class="container narrow block">
+            <div class="col-1-1">
+                <h3>Auto-confirmed forms</h3>
+                <p>Pre-verify email addresses on your account and you'll be able to create forms targetting them without having to submit the form and click on confirmation links.</p>
+            </div>
+      </div>
+
+      <div class="container narrow block">
+            <div class="col-1-1">
                 <h3>Access to submissions archive</h3>
-                <p>If you ever missed a submission email, for any reason, you can just login and read your last 100 submissions, all listed and timestamped with full data.</p>
-                <p>It even works for submissions made while you were not a {{ config.UPGRADED_PLAN_NAME }} user.</p>
+                <p>If you ever missed a submission email, for any reason, you can just login and read your last 1000 submissions, all listed and timestamped with full data. Also, the submissions can be exported to CSV or JSON!</p>
+                <p>It even works for submissions made while you were not a {{ config.UPGRADED_PLAN_NAME }} user (the last 100, in this case).</p>
             </div>
       </div>
 
@@ -224,17 +256,28 @@
   <div class="row section">
       <div class="container narrow block">
           <div class="col-1-2">
-            <p>{{config.SERVICE_NAME}} is a tool <a href="https://github.com/asm-products/formspree">managed on Github</a>. To contact us send an email to <a href="mailto:{{config.CONTACT_EMAIL}}">{{config.CONTACT_EMAIL}}</a> or use the form on the right.</p>
+            <p>{{config.SERVICE_NAME}} is a tool <a href="https://github.com/formspree/formspree">managed on GitHub</a>. To contact us send an email to <a href="mailto:{{config.CONTACT_EMAIL}}">{{config.CONTACT_EMAIL}}</a> or use the form on the right.</p>
           </div>
           <div class="col-1-2">
-            <form method="POST" action="//{{config.API_ROOT}}/{{config.CONTACT_EMAIL}}">
-              <input type="email" name="_replyto" placeholder="Your email" />
-              <textarea name="message" rows="5" placeholder="Your message"></textarea>
+            <form method="POST" action="{{config.API_ROOT}}/{{config.CONTACT_FORM_HASHID}}">
+              <input type="email" name="_replyto" placeholder="Your email" value="{{current_user.email}}"
+                     required />
+              <textarea name="message" rows="5" placeholder="Your message (when sending support requests, please include the URL to your form if that is relevant)" required></textarea>
               <input type="text" name="_gotcha" style="display:none">
+              <input type="hidden" name="_format" value="plain" style="display:none">
               <button type="submit">Send</button>
             </form>
           </div>
       </div>
+	  <div class="container block">
+      	<div class="col-1-1 center">
+          <a href="//facebook.com/formspree"><i class="fa fa-facebook-official fa-2x"></i></a>
+          <a href="//twitter.com/formspree"><i class="fa fa-twitter fa-2x"></i></a>
+          <a href="//github.com/formspree/formspree"><i class="fa fa-github fa-2x"></i></a>
+
+        </div>
+      </div>
+
   </div>
 
 {% endblock %}

@@ -6,6 +6,7 @@ import sys
 DEBUG = os.getenv('DEBUG') in ['True', 'true', '1', 'yes']
 if DEBUG:
     SQLALCHEMY_ECHO = True
+TESTING = os.getenv('TESTING') in ['True', 'true', '1', 'yes']
 
 SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
 
@@ -18,6 +19,8 @@ HASHIDS_SALT = os.getenv('HASHIDS_SALT')
 MONTHLY_SUBMISSIONS_LIMIT = int(os.getenv('MONTHLY_SUBMISSIONS_LIMIT') or 1000)
 ARCHIVED_SUBMISSIONS_LIMIT = int(os.getenv('ARCHIVED_SUBMISSIONS_LIMIT') or 100)
 REDIS_URL = os.getenv('REDISTOGO_URL') or os.getenv('REDISCLOUD_URL')
+
+CDN_URL = os.getenv('CDN_URL')
 
 SERVICE_NAME = os.getenv('SERVICE_NAME') or 'Forms'
 UPGRADED_PLAN_NAME = os.getenv('UPGRADED_PLAN_NAME') or 'Gold'
@@ -37,3 +40,10 @@ STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY') or STRIPE_TEST_SECRET_KEY
 
 RECAPTCHA_SECRET = os.getenv('RECAPTCHA_SECRET')
 RECAPTCHA_KEY = os.getenv('RECAPTCHA_KEY')
+
+RATE_LIMIT = os.getenv('RATE_LIMIT', '30 per hour')
+REDIS_RATE_LIMIT = os.getenv('REDIS_URL')  # heroku-redis
+
+CONTACT_FORM_HASHID = os.getenv('CONTACT_FORM_HASHID', CONTACT_EMAIL)
+
+TYPEKIT_KEY = os.getenv('TYPEKIT_KEY', '1234567')

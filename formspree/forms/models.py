@@ -1,12 +1,16 @@
-import urlparse
 import datetime
 
 from formspree.app import DB, redis_store
-from formspree import settings, log
-from formspree.utils import send_email, unix_time_for_12_months_from_now, next_url
-from flask import url_for, render_template
+from formspree import settings
+from formspree.utils import send_email, unix_time_for_12_months_from_now, \
+                            next_url, IS_VALID_EMAIL
+from flask import url_for, render_template, g
 from sqlalchemy.sql.expression import delete
-from helpers import HASH, HASHIDS_CODEC, MONTHLY_COUNTER_KEY, http_form_to_dict, referrer_to_path
+from werkzeug.datastructures import ImmutableMultiDict, \
+                                    ImmutableOrderedMultiDict
+from helpers import HASH, HASHIDS_CODEC, MONTHLY_COUNTER_KEY, \
+                    http_form_to_dict, referrer_to_path
+
 
 class Form(DB.Model):
     __tablename__ = 'forms'
@@ -15,6 +19,8 @@ class Form(DB.Model):
     hash = DB.Column(DB.String(32), unique=True)
     email = DB.Column(DB.String(120))
     host = DB.Column(DB.String(300))
+    sitewide = DB.Column(DB.Boolean)
+    disabled = DB.Column(DB.Boolean)
     confirm_sent = DB.Column(DB.Boolean)
     confirmed = DB.Column(DB.Boolean)
     counter = DB.Column(DB.Integer)
@@ -46,6 +52,8 @@ class Form(DB.Model):
     STATUS_EMAIL_SENT              = 0
     STATUS_EMAIL_EMPTY             = 1
     STATUS_EMAIL_FAILED            = 2
+    STATUS_OVERLIMIT               = 3
+    STATUS_REPLYTO_ERROR           = 4
 
     STATUS_CONFIRMATION_SENT       = 10
     STATUS_CONFIRMATION_DUPLICATED = 11
@@ -63,6 +71,7 @@ class Form(DB.Model):
         self.confirm_sent = False
         self.confirmed = False
         self.counter = 0
+        self.disabled = False
 
     def __repr__(self):
         return '<Form %s, email=%s, host=%s>' % (self.id, self.email, self.host)
@@ -81,30 +90,54 @@ class Form(DB.Model):
 
     @classmethod
     def get_with_hashid(cls, hashid):
-        id = HASHIDS_CODEC.decode(hashid)[0]
-        return cls.query.get(id)
+        try:
+            id = HASHIDS_CODEC.decode(hashid)[0]
+            return cls.query.get(id)
+        except IndexError:
+            return None
 
-    def send(self, http_form, referrer):
+    def send(self, submitted_data, referrer):
         '''
         Sends form to user's email.
         Assumes sender's email has been verified.
         '''
 
-        data, keys = http_form_to_dict(http_form)
+        if type(submitted_data) in (ImmutableMultiDict, ImmutableOrderedMultiDict):
+            data, keys = http_form_to_dict(submitted_data)
+        else:
+            data, keys = submitted_data, submitted_data.keys()
 
         subject = data.get('_subject', 'New submission from %s' % referrer_to_path(referrer))
-        reply_to = data.get('_replyto', data.get('email', data.get('Email', None)))
+        reply_to = data.get('_replyto', data.get('email', data.get('Email', ''))).strip()
         cc = data.get('_cc', None)
         next = next_url(referrer, data.get('_next'))
         spam = data.get('_gotcha', None)
+        format = data.get('_format', None)
+
+        # turn cc emails into array
+        if cc:
+            cc = [email.strip() for email in cc.split(',')]
 
         # prevent submitting empty form
         if not any(data.values()):
-            return { 'code': Form.STATUS_EMAIL_EMPTY }
+            return {'code': Form.STATUS_EMAIL_EMPTY}
 
         # return a fake success for spam
         if spam:
-            return { 'code': Form.STATUS_EMAIL_SENT, 'next': next }
+            g.log.info('Submission rejected.', gotcha=spam)
+            return {'code': Form.STATUS_EMAIL_SENT, 'next': next}
+
+        # validate reply_to, if it is not a valid email address, reject
+        if reply_to and not IS_VALID_EMAIL(reply_to):
+            g.log.info('Submission rejected. Reply-To is invalid.',
+                       reply_to=reply_to)
+            return {
+                'code': Form.STATUS_REPLYTO_ERROR,
+                'error-message': '"%s" is not a valid email address.' %
+                                 reply_to,
+                'address': reply_to,
+                'referrer': referrer
+            }
 
         # increase the monthly counter
         request_date = datetime.datetime.now()
@@ -142,30 +175,41 @@ class Form(DB.Model):
                         overlimit = False
                         break
 
+
         now = datetime.datetime.utcnow().strftime('%I:%M %p UTC - %d %B %Y')
         if not overlimit:
             text = render_template('email/form.txt', data=data, host=self.host, keys=keys, now=now)
-            html = render_template('email/form.html', data=data, host=self.host, keys=keys, now=now)
+            # check if the user wants a new or old version of the email
+            if format == 'plain':
+                html = render_template('email/plain_form.html', data=data, host=self.host, keys=keys, now=now)
+            else:
+                html = render_template('email/form.html', data=data, host=self.host, keys=keys, now=now)
         else:
             if monthly_counter - settings.MONTHLY_SUBMISSIONS_LIMIT > 25:
+                g.log.info('Submission rejected. Form over quota.', monthly_counter=monthly_counter)
                 # only send this overlimit notification for the first 25 overlimit emails
                 # after that, return an error so the user can know the website owner is not
                 # going to read his message.
-                return { 'code': Form.STATUS_EMAIL_FAILED }
+                return { 'code': Form.STATUS_OVERLIMIT }
 
             text = render_template('email/overlimit-notification.txt', host=self.host)
             html = render_template('email/overlimit-notification.html', host=self.host)
 
-        result = send_email(to=self.email,
-                          subject=subject,
-                          text=text,
-                          html=html,
-                          sender=settings.DEFAULT_SENDER,
-                          reply_to=reply_to,
-                          cc=cc)
+        result = send_email(
+            to=self.email,
+            subject=subject,
+            text=text,
+            html=html,
+            sender=settings.DEFAULT_SENDER,
+            reply_to=reply_to,
+            cc=cc
+        )
 
         if not result[0]:
-            return{ 'code': Form.STATUS_EMAIL_FAILED }
+            g.log.warning('Failed to send email.', reason=result[1], code=result[2])
+            if result[1].startswith('Invalid replyto email address'):
+                return { 'code': Form.STATUS_REPLYTO_ERROR}
+            return{ 'code': Form.STATUS_EMAIL_FAILED, 'mailer-code': result[2], 'error-message': result[1] }
 
         return { 'code': Form.STATUS_EMAIL_SENT, 'next': next }
 
@@ -183,15 +227,17 @@ class Form(DB.Model):
         redis_store.incr(key)
         redis_store.expireat(key, unix_time_for_12_months_from_now(basedate))
 
-    def send_confirmation(self):
+    def send_confirmation(self, with_data=None):
         '''
         Helper that actually creates confirmation nonce
         and sends the email to associated email. Renders
         different templates depending on the result
         '''
 
-        log.debug('Sending confirmation')
+        g.log = g.log.new(form=self.id, to=self.email, host=self.host)
+        g.log.debug('Sending confirmation.')
         if self.confirm_sent:
+            g.log.debug('Already sent in the past.')
             return { 'code': Form.STATUS_CONFIRMATION_DUPLICATED }
 
         # the nonce for email confirmation will be the hash when it exists
@@ -202,21 +248,27 @@ class Form(DB.Model):
         nonce = self.hash or '%s:%s' % (HASH(self.email, id), self.hashid)
         link = url_for('confirm_email', nonce=nonce, _external=True)
 
-        def render_content(type):
-            return render_template('email/confirm.%s' % type,
+        def render_content(ext):
+            data, keys = None, None
+            if with_data:
+                if type(with_data) in (ImmutableMultiDict, ImmutableOrderedMultiDict):
+                    data, keys = http_form_to_dict(with_data)
+                else:
+                    data, keys = with_data, with_data.keys()
+
+            return render_template('email/confirm.%s' % ext,
                                       email=self.email,
                                       host=self.host,
-                                      nonce_link=link)
-
-        log.debug('Sending email')
+                                      nonce_link=link,
+                                      data=data,
+                                      keys=keys)
 
         result = send_email(to=self.email,
                             subject='Confirm email for %s' % settings.SERVICE_NAME,
                             text=render_content('txt'),
                             html=render_content('html'),
                             sender=settings.DEFAULT_SENDER)
-
-        log.debug('Sent')
+        g.log.debug('Confirmation email queued.')
 
         if not result[0]:
             return { 'code': Form.STATUS_CONFIRMATION_FAILED }
@@ -250,10 +302,6 @@ class Form(DB.Model):
             return form
 
     @property
-    def action(self):
-        return url_for('send', email_or_string=self.hashid, _external=True)
-
-    @property
     def hashid(self):
         # A unique identifier for the form that maps to its id,
         # but doesn't seem like a sequential integer
@@ -264,10 +312,6 @@ class Form(DB.Model):
                 raise Exception("this form doesn't have an id yet, commit it first.")
             self._hashid = HASHIDS_CODEC.encode(self.id)
         return self._hashid
-
-    @property
-    def is_new(self):
-        return not self.host
 
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.ext.mutable import MutableDict
@@ -283,3 +327,7 @@ class Submission(DB.Model):
     def __init__(self, form_id):
         self.submitted_at = datetime.datetime.utcnow()
         self.form_id = form_id
+
+    def __repr__(self):
+        return '<Submission %s, form=%s, date=%s, keys=%s>' % \
+            (self.id or 'with an id to be assigned', self.form_id, self.submitted_at.isoformat(), self.data.keys())
